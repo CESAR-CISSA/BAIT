@@ -1,99 +1,128 @@
-# SIND — Semi-Naive Insider Detector
+# BAIT — Bayesian Architectures for Interpretable Insider Threat Detection
 
-> **SIND: A Semi-Naive Bayesian Approach for Insider Threat Detection**  
-> Matheus V. P. dos Santos, José Edson C. A. Júnior, Damião de O. M. Neto, Pedro H. G. Liberal, Anna C. F. Almeida, Igor F. B. do Rêgo, Anderson M. de Morais, Wellison R. M. Santos, Fernando Aires, Milton Lima, J. R. Campos  
-> CESAR / CISSA — Center for Security in Advanced Systems, Recife, Brazil  
+> **BAIT: Bayesian Architectures for Interpretable Insider Threat Detection**
+> Matheus V. P. dos Santos, José Edson C. A. Júnior, Damião de O. M. Neto, Pedro H. G. Liberal, Anderson M. de Morais, Milton Lima, J. R. Campos, Fernando Aires, Wellison R. M. Santos
+> CISSA (Centro Integrado de Segurança em Sistemas Avançados) / CESAR School, Recife, Brazil
+> CISUC — Centre for Informatics and Systems, University of Coimbra, Portugal
 > *Funded by EMBRAPII — Project CIS-AFCCT-2024-7-26-2*
+> *IEEE Access, submitted June 25, 2026*
 
 ---
 
 ## Overview
 
-Insider threats represent a critical challenge in organizational cybersecurity: malicious actors with legitimate access can cause significant damage while evading conventional detection mechanisms. Existing approaches typically sacrifice interpretability for accuracy, or rely on large volumes of labeled data that are rarely available in practice.
+Insider threats represent a critical challenge in organizational cybersecurity: malicious actors with legitimate access can cause significant damage while evading conventional detection mechanisms, and security teams must be able to justify why a given user was flagged before escalating an investigation.
 
-**SIND** is a probabilistic framework that addresses these limitations through a **Semi-Naive Bayesian Network (SNBN)** combining:
+**BAIT** (Bayesian Architectures for Insider Threat Detection) is a probabilistic framework that evaluates **six alternative Bayesian-network architectures** for user-level insider threat detection under a single, unified preprocessing and evaluation protocol, rather than assuming that one manually specified dependency pattern is always optimal. All architectures share:
 
-- Multi-source **behavioral feature engineering** (logon, device, email, file, web activity)
-- **Synthetic class balancing** via SMOTE to handle extreme label imbalance
-- **Probabilistic inference** via MAP estimation with BDeu prior for interpretable, auditable risk scores
+- Multi-source **behavioral feature engineering** (logon, device, e-mail, file, and Web activity)
+- **Mutual-Information (MI)** based feature selection
+- **Train-fitted discretization** (no test-set leakage)
+- Optional **SMOTE** class balancing, evaluated explicitly as an ablation rather than assumed by default
+- **MAP estimation with a BDeu prior** for parameter learning
+- **Validation-based threshold calibration**
 
-The causal graph structure enables security analysts to understand *which behavioral factors* drove each classification decision — a requirement that is currently underaddressed in production detection systems.
+The winning architecture is selected empirically (not fixed a priori) through a 30-run repeated stratified cross-validation comparison, giving security analysts an auditable, interpretable evidence path — the graph structure, the CPTs, and the posterior risk score — behind every alert.
+
+---
+
+## Evaluated Bayesian Architectures
+
+BAIT compares six architectures, built from the same preprocessed (discretized + latent) feature set:
+
+| Key | Architecture | Description |
+|-----|--------------|-------------|
+| NB | Naive Bayes | Label → every feature; features conditionally independent given the class. Classical baseline. |
+| SNBN | Semi-Naive Bayesian Network | Naive Bayes backbone plus a fixed intra-domain feature chain (manually defined local dependencies). |
+| HL | Hierarchical Latent (fixed) | Label → latent domain node (K-Means summary) → domain features; no learned structure among latents. |
+| **TAN-F** | **TAN over Features (Chow-Liu)** | Label → every feature, plus a Chow-Liu maximum-mutual-information spanning tree learned directly among the *observed* behavioral features (Tree-Augmented Naive Bayes). |
+| SNBN-CL | SNBN + Latent Structure (Chow-Liu) | Latent/domain-level dependencies learned with the Chow-Liu algorithm. |
+| SNBN-HC | SNBN + Latent Structure (HillClimb-BIC) | Latent/domain-level dependencies learned via greedy hill-climbing search scored with BIC. |
+
+**TAN-F (TAN over Features, learned with Chow-Liu) was selected as the best overall architecture** across the 30-fold repeated cross-validation comparison, and is the architecture reported for the single-run auditable evaluation.
 
 ---
 
 ## Key Results (CERT r4.2)
 
-| Metric | SIND | Best from All Competitors |
-|--------|------|---------------------------|
-| Accuracy | **0.980** | 0.972 |
-| Precision | **0.900** | — |
-| Recall | **0.970** | 0.884 |
-| F1-Score | **0.930** | 0.870 |
-| Detection Rate | **0.950** | 0.840 |
-| FPR | 0.018 | 0.015 |
-| AUC-ROC | **0.994** | — |
-| AUPRC | **0.930** | — |
+### 30-run repeated stratified cross-validation (primary architecture-selection evidence)
 
-Evaluated on a strictly imbalanced test set (279 normal / 21 malicious) to reflect a realistic needle-in-a-haystack scenario.
+| Architecture | Edges | Acc. | Precision | Recall | F1 | FPR | AUPRC |
+|---|---|---|---|---|---|---|---|
+| Naive Bayes | 24 | 0.9536 ± 0.0204 | 0.8740 ± 0.0639 | 0.9657 ± 0.0373 | 0.9155 ± 0.0344 | 0.0506 ± 0.0294 | 0.9744 ± 0.0168 |
+| SNBN | 43 | 0.9819 ± 0.0133 | 0.9514 ± 0.0380 | **0.9815 ± 0.0323** | 0.9655 ± 0.0253 | 0.0179 ± 0.0148 | 0.9938 ± 0.0072 |
+| Hierarchical Latent (fixed) | 28 | 0.9262 ± 0.0159 | 0.8423 ± 0.0505 | 0.8838 ± 0.0626 | 0.8598 ± 0.0302 | 0.0591 ± 0.0249 | 0.9070 ± 0.0468 |
+| **TAN-F** | 47 | **0.9864 ± 0.0103** | **0.9694 ± 0.0294** | 0.9794 ± 0.0349 | **0.9736 ± 0.0203** | **0.0111 ± 0.0109** | **0.9957 ± 0.0053** |
+| SNBN + Latent (Chow-Liu) | 31 | 0.9361 ± 0.0243 | 0.8347 ± 0.0729 | 0.9503 ± 0.0564 | 0.8853 ± 0.0399 | 0.0688 ± 0.0369 | 0.9615 ± 0.0231 |
+| SNBN + Latent (HillClimb/BIC) | 31 | 0.9361 ± 0.0243 | 0.8347 ± 0.0729 | 0.9503 ± 0.0564 | 0.8853 ± 0.0399 | 0.0688 ± 0.0369 | 0.9615 ± 0.0231 |
+
+Paired Wilcoxon signed-rank tests show TAN-F is significantly better than Naive Bayes, the fixed hierarchical latent architecture, and both latent-structure variants (p < 0.0001); the comparison against SNBN is directionally favorable but not statistically significant at the 0.05 level (p = 0.0825).
+
+### Single held-out run — selected architecture (TAN-F)
+
+Evaluated on a strictly imbalanced held-out test set (279 normal / 21 malicious, 7.00% malicious rate) to reflect a realistic needle-in-a-haystack scenario.
+
+| TP | FP | TN | FN | Threshold | Acc. | Precision | Recall | F1 | FPR | AUC-ROC | AUPRC |
+|----|----|----|----|-----------|------|-----------|--------|----|----|---------|--------|
+| 20 | 1 | 278 | 1 | 0.73 | 0.9933 | 0.9524 | 0.9524 | 0.9524 | 0.0036 | 0.9991 | 0.9901 |
 
 ---
 
 ## Architecture
 
-SIND operates as a four-stage end-to-end pipeline:
+BAIT operates as an end-to-end, six-stage pipeline:
 
-<img width="1449" height="304" alt="Captura de tela 2026-03-20 134018" src="https://github.com/user-attachments/assets/70dc400a-8b3c-482c-aa87-bfe7e122838a" />
+`Raw Activity Logs → Feature Engineering → MI Feature Selection → Train-Fitted Discretization → Bayesian Architecture → Threshold Calibration → Classification`
 
-### Semi-Naive Bayesian Network
-
-The core model combines:
-- **Direct label dependence**: `Label → feat_i` for all features (Naive Bayes baseline)
-- **Intra-domain dependency chains**: directed edges between features within the same behavioral domain (device, logon, email, file, web)
-
-This captures behavioral correlations (e.g., USB connect → file copy) without the exponential CPT growth of fully connected structures.
+1. **Feature Engineering** — raw event streams (authentication, device, e-mail, file, Web) are aggregated into user-level behavioral profiles.
+2. **MI Feature Selection** — Mutual Information ranks candidate variables and retains a compact 24-feature subset.
+3. **Train-Fitted Discretization** — continuous features are binned using boundaries fit only on the training partition (no test leakage).
+4. **Optional SMOTE** — synthetic oversampling of the training subset, evaluated as an explicit ablation rather than a default assumption.
+5. **Bayesian Architecture** — one of six architectures (see above) is trained via MAP estimation with a BDeu prior.
+6. **Threshold Calibration & Classification** — posterior probabilities `P(Label = 1 | evidence)` are converted into binary alerts using a validation-selected threshold.
 
 ---
 
 ## Selected Features
 
-The 24 features used by SIND are derived via Mutual Information analysis across five behavioral domains.
+The 24 features used by BAIT are derived via Mutual Information analysis across five behavioral domains.
 
 | Feature | Description |
 |---------|-------------|
-| `device_std_daily_device_events` | Standard deviation of daily device events. |
-| `device_mean_daily_device_events` | Mean number of daily device events. |
-| `device_max_daily_device_events` | Maximum number of device events in a single day. |
+| `device_std_daily_device_events` | Standard deviation of the daily number of device events. |
+| `device_mean_daily_device_events` | Daily mean number of device events. |
+| `device_max_daily_device_events` | Maximum number of device events on a single day. |
 | `device_device_events_total` | Total number of device events. |
-| `device_offhour_device_ratio` | Ratio of off-hours device events to total events. |
-| `device_offhour_device_count` | Absolute count of off-hours device events. |
-| `device_active_days` | Number of days in which the device was active. |
-| `device_unique_pcs_used` | Number of distinct PCs used by the user. |
-| `device_usb_connects` | Count of USB device connections. |
+| `device_offhour_device_ratio` | Proportion of device events outside working hours relative to the total. |
+| `device_offhour_device_count` | Absolute number of device events outside working hours. |
+| `device_active_days` | Number of days on which device activity occurred. |
+| `device_unique_pcs_used` | Number of distinct computers used by the user. |
+| `device_usb_connects` | Number of USB device connections. |
 | `logon_total_logons_day` | Total number of daily logons. |
 | `logon_total_logoffs_day` | Total number of daily logoffs. |
 | `logon_sessions_total_duration` | Total duration of logon sessions. |
 | `logon_open_sessions_mean` | Mean number of simultaneously open sessions. |
-| `logon_missing_logoff_count` | Count of logons without corresponding logoff. |
+| `logon_missing_logoff_count` | Number of logons without a corresponding logoff. |
 | `logon_logon_to_logoff_ratio` | Ratio between logons and logoffs. |
-| `logon_distinct_pcs_used` | Number of distinct PCs accessed through logon. |
-| `email_n_email` | Total number of sent/received emails. |
-| `email_email_total_attachments` | Total number of email attachments. |
-| `email_email_unique_bcc` | Number of unique BCC recipients. |
+| `logon_distinct_pcs_used` | Number of distinct computers accessed through logon. |
+| `email_n_email` | Total number of e-mails sent and received. |
+| `email_email_total_attachments` | Total number of attachments in e-mails. |
+| `email_email_unique_bcc` | Number of unique recipients in blind carbon copy. |
 | `email_email_unique_to` | Number of unique recipients in the To field. |
-| `email_email_mean_text_len` | Mean length of email text. |
-| `file_pdf_files_accessed` | Number of accessed PDF files. |
-| `file_exe_files_accessed` | Number of accessed executable files (`.exe`). |
-| `http_unique_urls_visited` | Number of unique visited HTTP URLs. |
+| `email_email_mean_text_len` | Mean text length of e-mails. |
+| `file_pdf_files_accessed` | Number of PDF files accessed. |
+| `file_exe_files_accessed` | Number of executable files accessed. |
+| `http_unique_urls_visited` | Number of unique HTTP URLs visited. |
 
 ---
 
 ## Repository Contents
 
 ```
-SIND/
-├── Extração de Features.ipynb               # Step 1 — raw CERT r4.2 logs → user-level feature matrix
-├── SIND _Semi_Naive_InsiderDetector.ipynb   # Step 2 — feature selection, SMOTE, BN training & evaluation
-├── 4.2_meses_18.zip                         # Preprocessed CERT r4.2 splits (output of Step 1)
+BAIT/
+├── Extração de Features.ipynb                  # Step 1 — raw CERT r4.2 logs → user-level feature matrix
+├── BAIT_Pipeline_v3_MultiArchitecture.ipynb    # Step 2 — architecture comparison, calibration & final evaluation
+├── 4.2_meses_18.zip                            # Preprocessed CERT r4.2 splits (output of Step 1)
 │   ├── X_train.csv
 │   ├── X_test.csv
 │   ├── y_train.csv
@@ -101,7 +130,7 @@ SIND/
 └── README.md
 ```
 
-The two notebooks form a sequential pipeline: **`Extração de Features`** processes the raw CERT r4.2 CSV logs into a per-user behavioral feature matrix, and **`SIND`** consumes that matrix to train and evaluate the Semi-Naive Bayesian Network.
+The two notebooks form a sequential pipeline: **`Extração de Features`** processes the raw CERT r4.2 CSV logs into a per-user behavioral feature matrix, and **`BAIT_Pipeline_v3_MultiArchitecture`** consumes that matrix to build, train, calibrate, and compare all six Bayesian architectures, selecting the best one and reproducing every table and figure reported in the manuscript.
 
 ---
 
@@ -109,31 +138,32 @@ The two notebooks form a sequential pipeline: **`Extração de Features`** proce
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.8+ (pipeline was profiled on Python 3.12)
 - Jupyter Notebook or Google Colab
 - Raw CERT r4.2 logs (required only if re-running feature extraction — see Option B)
 
 ### Installation
 
 ```bash
-pip install pgmpy scikit-learn networkx matplotlib seaborn xgboost imbalanced-learn
+pip install pgmpy scikit-learn imbalanced-learn scipy networkx seaborn matplotlib pandas numpy
 ```
 
 Or in a Colab/notebook cell:
 
 ```python
-!pip install pgmpy scikit-learn networkx matplotlib seaborn xgboost imblearn
+!pip install pgmpy scikit-learn imbalanced-learn scipy networkx seaborn
 ```
 
 ### Option A — Run from preprocessed splits (recommended)
 
-Use the included `4.2_meses_18.zip` to reproduce the SIND results without re-extracting features.
+Use the included `4.2_meses_18.zip` to reproduce the BAIT results without re-extracting features.
 
 1. Clone the repository:
    ```bash
    git clone https://github.com/CESAR-CISSA/SIND.git
    cd SIND
    ```
+   > The repository name is retained from the original codebase for continuity; it now hosts the BAIT architecture-comparison pipeline.
 
 2. Extract the dataset:
    ```bash
@@ -142,15 +172,15 @@ Use the included `4.2_meses_18.zip` to reproduce the SIND results without re-ext
 
 3. Open and run the main notebook:
    ```bash
-   jupyter notebook "SIND _Semi_Naive_InsiderDetector.ipynb"
+   jupyter notebook "BAIT_Pipeline_v3_MultiArchitecture.ipynb"
    ```
 
-   Update the data paths at the top of the notebook:
+   The notebook expects the following files in its working directory (generated by `Extração de Features.ipynb`):
    ```python
-   X_train = pd.read_csv('./4.2_meses_18/X_train.csv')
-   X_test  = pd.read_csv('./4.2_meses_18/X_test.csv')
-   y_train = pd.read_csv('./4.2_meses_18/y_train.csv').squeeze()
-   y_test  = pd.read_csv('./4.2_meses_18/y_test.csv').squeeze()
+   X_train = pd.read_csv('./X_train.csv')
+   X_test  = pd.read_csv('./X_test.csv')
+   y_train = pd.read_csv('./y_train.csv').squeeze()
+   y_test  = pd.read_csv('./y_test.csv').squeeze()
    ```
 
 ### Option B — Full pipeline from raw logs
@@ -169,18 +199,22 @@ To reproduce everything from scratch starting from the original CERT r4.2 event 
 
 2. Run **`Extração de Features.ipynb`**. The notebook parses each event source, computes per-user behavioral aggregates, joins all domain tables on `user`, and assigns binary labels from the ground-truth metadata.
 
-3. Use the resulting feature matrix as input to **`SIND _Semi_Naive_InsiderDetector.ipynb`**.
+3. Use the resulting feature matrix as input to **`BAIT_Pipeline_v3_MultiArchitecture.ipynb`**.
 
 ---
 
 ## Dataset
 
-Experiments use the **CERT Insider Threat Dataset r4.2**, developed by the Software Engineering Institute (SEI) at Carnegie Mellon University. It simulates the daily activities of 1,000 users over 17 months across five event sources: authentication, removable device usage, web browsing, email, and file operations. Ground-truth labels cover malicious scenarios such as data exfiltration by departing employees and system sabotage by disgruntled administrators.
+Experiments use the **CERT Insider Threat Dataset r4.2**, developed by the Software Engineering Institute (SEI) at Carnegie Mellon University. It simulates the daily activities of 1,000 users over 17 months across five event sources: authentication, removable device usage, web browsing, email, and file operations. Ground-truth labels cover three main insider threat scenarios: data exfiltration, intellectual property theft, and system sabotage.
 
 The preprocessed train/test splits (`4.2_meses_18.zip`) are included directly in this repository. The original raw logs can be obtained from the [CERT dataset page](https://resources.sei.cmu.edu/library/asset-view.cfm?assetid=508099).
 
-> **Training distribution (after SMOTE):** 651 normal / 279 anomalous  
-> **Test distribution (imbalanced):** 279 normal / 21 malicious
+Two complementary evaluation partitions are used throughout the pipeline:
+
+- **Single-run audit** — the held-out CERT r4.2 test partition with 300 users, of whom 21 are malicious and 279 are normal (**7.00% malicious rate**).
+- **Architecture-comparison protocol** — 30 stratified fold-level runs (`RepeatedStratifiedKFold`, 10 splits × 3 repeats) over the pooled train+test artifact (1,251 profiles), where each test fold contains 125–126 profiles (25.60–26.19% malicious) and each training fold contains 1,125–1,126 profiles (25.60–25.67% malicious).
+
+Because the raw pre-split CSVs exhibit a class-imbalance mismatch between train (~31.5% malicious) and test (~7.0% malicious) — consistent with a temporal split where earlier logged periods contain a denser concentration of malicious activity — the architecture comparison pools and re-splits the data to avoid conflating this mismatch with genuine architecture differences, while the single-run audit intentionally preserves the harder, more realistic imbalanced test distribution.
 
 ---
 
@@ -198,50 +232,59 @@ The preprocessed train/test splits (`4.2_meses_18.zip`) are included directly in
 | Feature merging | Left-join all domain tables on `user`; fill missing values; apply domain prefix (`device_*`, `logon_*`, …) |
 | Labeling | Assign binary labels (`1` = malicious, `0` = normal) from ground-truth metadata |
 
-### `SIND _Semi_Naive_InsiderDetector.ipynb` — Detection Pipeline
+### `BAIT_Pipeline_v3_MultiArchitecture.ipynb` — Detection Pipeline
 
-| Section | Description |
-|---------|-------------|
-| 1. Data Loading | Load train/test CSVs, inspect class distribution |
-| 2. Feature Selection | Mutual Information analysis per behavioral domain |
-| 3. Discretization | `KBinsDiscretizer` (quantile strategy, 5 bins) |
-| 4. Latent Features | K-Means clustering per domain for intermediate nodes |
-| 5. Network Architectures | Define Naive, Hierarchical, Semi-Naive, TAN, Hybrid edge sets |
-| 6. Training & Evaluation | BN training with MLE/MAP; comparison vs sklearn baselines |
-| 7. Confusion Matrix | Best model analysis |
-| 8. Explainability Metrics | Mutual Information, KL Divergence, permutation importance |
-| 9. Network Visualization | Node-size-proportional influence graph |
-| 10. Architecture Comparison | Side-by-side visualization of all topologies |
-| 11. CPD Analysis | How top nodes influence predictions |
-| 12. Cross-Validation | Robustness evaluation |
+| # | Section | Purpose |
+|---|---------|---------|
+| 0 | Imports & Configuration | Global hyperparameters (seed, bins, ESS, fold counts, threshold grid) |
+| 1 | Data Loading | Load train/test CSVs, select top-24 features, report train/test class-balance mismatch |
+| 2 | Unified Metrics Module | Single source of truth for every reported metric (from the confusion matrix) |
+| 3 | Preprocessing Pipeline | Discretization + latent (domain) nodes via K-Means, fit on train only |
+| 4 | Bayesian Network Architectures | The 6 architectures + Chow-Liu / HillClimb-BIC structure learning |
+| 5 | Threshold Calibration Toolkit | 4 threshold-selection strategies (Grid-F1, Youden's J, Platt, Isotonic) |
+| 6 | Repeated Stratified K-Fold Evaluation | Architecture comparison, N = 30 paired folds |
+| 7 | Statistical Tests — Wilcoxon | Best architecture vs. every other, paired signed-rank test |
+| 8 | Best-Architecture Selection & Final Run | Canonical Train2/Val/Test evaluation of the winning architecture |
+| 9 | SMOTE Ablation | Best architecture with vs. without synthetic oversampling |
+| 10 | Imbalance Sensitivity | Best architecture's performance as the malicious-class ratio is subsampled (1–30%) |
+| 11 | CPT Stability via Bootstrap | Bootstrap resampling of CPT entries for the highest-MI nodes |
+| 12 | MAP vs. MLE Analysis | Estimator sensitivity across BDeu equivalent sample sizes |
+| 13 | Runtime Analysis | Structure-learning, training, and inference time for all 6 architectures |
+| 14 | CPD Tables & Interpretability Graph | Mutual-Information ranking, CPD tables, node-size-proportional influence graph |
+| 15 | Output Inventory | Full listing of exported tables and figures |
 
 ---
 
 ## Reproducibility
 
-All experiments use a fixed random seed (`random_state = 42`). The SMOTE ratio targets 30% minority class relative to the majority.
+All experiments use a fixed random seed (`RANDOM_STATE = 42`).
 
-Key hyperparameters:
-- `N_BINS = 5`, `STRATEGY = 'quantile'` (discretization)
-- `prior_type = 'BDeu'`, `equivalent_sample_size = 5` (MAP estimation)
-- `N_LATENT_STATES = 3` (latent node clustering)
+Key hyperparameters (from the pipeline configuration):
+- `N_BINS = 8`, `STRATEGY = 'quantile'` (discretization)
+- `N_LATENT_STATES = 3` (K-Means latent/domain node cardinality)
+- `N_SPLITS_CV = 10`, `N_REPEATS_CV = 3` → 30 paired folds for the architecture comparison and the Wilcoxon test
+- `BN_PRIOR_TYPE = 'BDeu'`, `BN_ESS_DEFAULT = 5` (MAP estimation)
+- `VAL_SIZE = 0.20`, `THRESHOLD_CRITERION = 'f1'` (validation-based threshold calibration)
+- `IMBALANCE_RATIOS = [0.01, 0.02, 0.05, 0.10, 0.20, 0.30]` (Section 10 ablation)
+- `ESS_GRID = [1, 5, 10, 20]` (Section 12 estimator-sensitivity ablation)
+- `N_BOOTSTRAP = 1000` (95% CI on CV summary metrics), `N_BOOT_CPT = 100` (CPT-stability bootstrap)
 
 ---
 
 ## Citation
 
-If you use SIND in your research, please cite:
+If you use BAIT in your research, please cite:
 
 ```bibtex
-@inproceedings{santos2025sind,
-  title     = {{SIND}: A Semi-Naive {B}ayesian Approach for Insider Threat Detection},
+@article{santos2026bait,
+  title     = {{BAIT}: {B}ayesian {A}rchitectures for {I}nterpretable {I}nsider {T}hreat {D}etection},
   author    = {Santos, Matheus V. P. dos and J{\'u}nior, Jos{\'e} Edson C. A. and
                Neto, Dami{\~a}o de O. M. and Liberal, Pedro H. G. and
-               Almeida, Anna C. F. and R{\^e}go, Igor F. B. do and
-               Morais, Anderson M. de and Santos, Wellison R. M. and
-               Aires, Fernando and Lima, Milton and Campos, J. R.},
-  booktitle = {IEEE International Conference on Systems, Man, and Cybernetics (SMC)},
+               Morais, Anderson M. de and Lima, Milton and Campos, J. R. and
+               Aires, Fernando and Santos, Wellison R. M.},
+  journal   = {IEEE Access},
   year      = {2026},
+  doi       = {10.1109/ACCESS.2024.0429000},
   note      = {Funded by EMBRAPII, Project CIS-AFCCT-2024-7-26-2}
 }
 ```
@@ -250,11 +293,18 @@ If you use SIND in your research, please cite:
 
 ## Acknowledgements
 
-This work was supported by **EMBRAPII** through the project *Identifying and interpreting behavioral deviations of malicious users or those linked to cybercrime* (Project Code: CIS-AFCCT-2024-7-26-2).
+This work was supported by **EMBRAPII** through the project *Identificação e interpretação de desvios de comportamentos de usuários mal intencionados ou ligados ao cibercrime* (Project Code: CIS-AFCCT-2024-7-26-2), with financial resources from the PPI IoT/Manufatura 4.0 of the MCTI grant, signed with EMBRAPII. The Article Processing Charge was funded by CAPES (Coordenação de Aperfeiçoamento de Pessoal de Nível Superior; ROR: 00x0ma614).
 
 Affiliations:
-- **CESAR / CISSA** — Center for Advanced Studies and Systems / Center for Security in Advanced Systems, Recife, Pernambuco, Brazil
+- **CISSA / CESAR School** — Centro Integrado de Segurança em Sistemas Avançados, Recife, Pernambuco, Brazil
 - **CISUC / University of Coimbra** — Centre for Informatics and Systems of the University of Coimbra, Portugal
+- **UFRPE** — Universidade Federal Rural de Pernambuco, Recife, Brazil
+
+---
+
+## Data and Code Availability
+
+Source code and experimental artifacts are available at [https://github.com/CESAR-CISSA/SIND](https://github.com/CESAR-CISSA/SIND). The repository name is retained for continuity with the existing public codebase and hosts the updated BAIT architecture-comparison code and artifacts.
 
 ---
 
