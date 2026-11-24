@@ -290,7 +290,7 @@ If you use BAIT in your research, please cite:
                Aires, Fernando and Santos, Wellison R. M.},
   journal   = {IJIS},
   year      = {2026},
-  doi       = {10.1109/ACCESS.2024.0429000},
+  doi       = {},
   note      = {Funded by EMBRAPII, Project CIS-AFCCT-2024-7-26-2}
 }
 ```
