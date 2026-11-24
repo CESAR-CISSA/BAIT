@@ -288,7 +288,7 @@ If you use BAIT in your research, please cite:
                Neto, Dami{\~a}o de O. M. and Liberal, Pedro H. G. and
                Morais, Anderson M. de and Lima, Milton and Campos, J. R. and
                Aires, Fernando and Santos, Wellison R. M.},
-  journal   = {IEEE Access},
+  journal   = {IJIS},
   year      = {2026},
   doi       = {10.1109/ACCESS.2024.0429000},
   note      = {Funded by EMBRAPII, Project CIS-AFCCT-2024-7-26-2}
