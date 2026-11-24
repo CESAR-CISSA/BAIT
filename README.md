@@ -5,7 +5,6 @@
 > CISSA (Centro Integrado de Segurança em Sistemas Avançados) / CESAR School, Recife, Brazil
 > CISUC — Centre for Informatics and Systems, University of Coimbra, Portugal
 > *Funded by EMBRAPII — Project CIS-AFCCT-2024-7-26-2*
-> *IEEE Access, submitted June 25, 2026*
 
 ---
 
